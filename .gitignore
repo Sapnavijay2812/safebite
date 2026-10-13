@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# prisma local database (keep the schema and migrations, not the data file)
+prisma/dev.db
+prisma/dev.db-journal
+
+# environment and secrets
+.env
+.env.*
+!.env.example
+
+# uploads and exports produced at runtime
+data/uploads/
+data/exports/
+
+# testing
+coverage/
+test-results/
+playwright-report/
+
+# misc
+.DS_Store
+*.log
+npm-debug.log*
+tsconfig.tsbuildinfo

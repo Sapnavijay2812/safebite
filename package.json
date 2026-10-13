@@ -1,0 +1,56 @@
+{
+  "name": "safebite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SafeBite — evidence-based food safety transparency for smarter food choices.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "postinstall": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset --force",
+    "fixtures:pdf": "node scripts/generate-sample-pdf.mjs"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.9.0",
+    "lucide-react": "0.511.0",
+    "next": "15.3.4",
+    "pdf-parse": "1.1.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "recharts": "2.15.4",
+    "zod": "3.25.67"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.3.1",
+    "@playwright/test": "1.53.0",
+    "@tailwindcss/postcss": "4.1.10",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "22.15.30",
+    "@types/pdf-parse": "1.1.5",
+    "@types/react": "19.1.8",
+    "@types/react-dom": "19.1.6",
+    "@vitejs/plugin-react": "4.6.0",
+    "eslint": "9.29.0",
+    "eslint-config-next": "15.3.4",
+    "jsdom": "26.1.0",
+    "postcss": "8.5.6",
+    "prisma": "6.9.0",
+    "tailwindcss": "4.1.10",
+    "tsx": "4.20.3",
+    "typescript": "5.8.3",
+    "vitest": "3.2.4"
+  }
+}

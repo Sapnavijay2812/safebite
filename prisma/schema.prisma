@@ -1,0 +1,244 @@
+// SafeBite data model. SQLite for the zero-configuration local demo.
+// Enumerated values are stored as strings (SQLite has no native enums); the
+// allowed values are defined in src/lib/domain.ts and validated on write.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Hygiene categories are reference data (6 fixed categories).
+model HygieneCategory {
+  key         String  @id
+  label       String
+  description String
+  sortOrder   Int
+
+  inspectionCategories InspectionCategory[]
+  findings             InspectionFinding[]
+  documentClaims       DocumentCategoryClaim[]
+}
+
+// Where a piece of evidence came from. `tier` drives the transparency model.
+model EvidenceSource {
+  key         String @id
+  label       String
+  // OFFICIAL_VERIFIED | INDEPENDENT_CHECK | SELF_REPORTED | UNVERIFIED_ALLEGATION | AI_INFERRED
+  tier        String
+  description String
+
+  inspections Inspection[]
+  documents   EvidenceDocument[]
+}
+
+model Restaurant {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  name        String
+  cuisine     String
+  priceTier   Int
+  description String
+  accentColor String  @default("#2F6B4F")
+  // Every seeded record is fictional. The flag is shown in the UI.
+  isFictional Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  location          Location?
+  inspections       Inspection[]
+  documents         EvidenceDocument[]
+  communityReports  CommunityReport[]
+
+  @@index([cuisine])
+}
+
+model Location {
+  id           String  @id @default(cuid())
+  restaurantId String  @unique
+  addressLine  String
+  neighborhood String
+  city         String
+  postalCode   String?
+  latitude     Float
+  longitude    Float
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([neighborhood])
+}
+
+model Inspection {
+  id            String   @id @default(cuid())
+  restaurantId  String
+  inspectedAt   DateTime
+  authorityName String
+  sourceKey     String
+  // PASS | PASS_WITH_CONDITIONS | FAIL
+  outcome       String
+  summary       String
+  // True for seeded, simulated records. They are never authority records.
+  isSimulated   Boolean  @default(false)
+  // Set when the record was published from an uploaded document after human review.
+  documentId    String?  @unique
+  createdAt     DateTime @default(now())
+
+  restaurant Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  source     EvidenceSource     @relation(fields: [sourceKey], references: [key])
+  document   EvidenceDocument?  @relation(fields: [documentId], references: [id])
+  categories InspectionCategory[]
+  findings   InspectionFinding[]
+
+  @@index([restaurantId, inspectedAt])
+  @@index([inspectedAt])
+}
+
+model InspectionCategory {
+  inspectionId String
+  categoryKey  String
+
+  inspection Inspection       @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  category   HygieneCategory  @relation(fields: [categoryKey], references: [key])
+
+  @@id([inspectionId, categoryKey])
+}
+
+model InspectionFinding {
+  id                    String    @id @default(cuid())
+  inspectionId          String
+  categoryKey           String
+  // CRITICAL | MAJOR | MINOR | OBSERVATION
+  severity              String
+  description           String
+  // UNRESOLVED | RESOLVED
+  status                String
+  remediation           String?
+  resolvedAt            DateTime?
+  resolvedByInspectionId String?
+  createdAt             DateTime  @default(now())
+
+  inspection Inspection       @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  category   HygieneCategory  @relation(fields: [categoryKey], references: [key])
+
+  @@index([inspectionId])
+  @@index([categoryKey, status])
+  @@index([severity, status])
+}
+
+model EvidenceDocument {
+  id               String   @id @default(cuid())
+  restaurantId     String
+  title            String
+  // INSPECTION_REPORT | SELF_ATTESTATION | AUDIT_CERTIFICATE
+  kind             String
+  sourceKey        String
+  // Relative key resolved only against allow-listed folders (see src/lib/storage).
+  storageKey       String   @unique
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  sha256           String
+  isSample         Boolean  @default(false)
+  issuedAt         DateTime?
+  // UPLOADED | EXTRACTED | PUBLISHED | REJECTED
+  processingStatus String   @default("UPLOADED")
+  uploadedAt       DateTime @default(now())
+
+  restaurant  Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  source      EvidenceSource         @relation(fields: [sourceKey], references: [key])
+  claims      DocumentCategoryClaim[]
+  extraction  DocumentExtraction?
+  inspection  Inspection?
+
+  @@index([restaurantId])
+  @@index([processingStatus])
+}
+
+model DocumentCategoryClaim {
+  documentId      String
+  categoryKey     String
+  claimsCompliant Boolean
+
+  document EvidenceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  category HygieneCategory  @relation(fields: [categoryKey], references: [key])
+
+  @@id([documentId, categoryKey])
+}
+
+model DocumentExtraction {
+  id            String    @id @default(cuid())
+  documentId    String    @unique
+  // PENDING | EXTRACTED | FAILED | REVIEWED
+  status        String
+  // DETERMINISTIC | GEMINI
+  provider      String
+  // Machine output. Always labelled AI-extracted (or rule-extracted) in the UI.
+  extractedJson String
+  // Human-confirmed output after review. Null until a reviewer saves.
+  reviewedJson  String?
+  reviewerNote  String?
+  errorCode     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  reviewedAt    DateTime?
+
+  document EvidenceDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model CommunityReport {
+  id                String   @id @default(cuid())
+  restaurantId      String
+  // One of the six hygiene category keys or OTHER
+  category          String
+  description       String
+  incidentDate      DateTime
+  // PENDING | UNDER_REVIEW | CORROBORATED | REJECTED
+  status            String   @default("PENDING")
+  // Optional text describing evidence the submitter holds. No files or links are fetched.
+  evidenceNote      String?
+  evidenceDocumentId String?
+  // Salted hash of the client IP. No names, emails or contact details are stored.
+  submitterHash     String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  moderation ModerationAction[]
+
+  @@index([status])
+  @@index([restaurantId, status])
+  @@index([createdAt])
+}
+
+model ModerationAction {
+  id         String   @id @default(cuid())
+  reportId   String
+  fromStatus String
+  toStatus   String
+  note       String
+  actor      String
+  createdAt  DateTime @default(now())
+
+  report CommunityReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  eventType  String
+  entityType String
+  entityId   String
+  actor      String
+  // JSON-encoded metadata. Never contains secrets, file contents or personal data.
+  metadata   String   @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

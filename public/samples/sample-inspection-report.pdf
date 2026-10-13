@@ -1,0 +1,52 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 1215 >>
+stream
+BT /F1 11 Tf 14 TL 56 740 Td
+(SIMULATED RECORD - FICTIONAL DEMO DATA - NOT AN AUTHORITY RECORD) Tj T*
+(Harbor Bay Food Safety Inspection Report) Tj T*
+(Establishment: Copperleaf Kitchen) Tj T*
+(Inspection Authority: Harbor Bay Demo Health Department \(simulated\)) Tj T*
+(Inspection Date: 2026-07-08) Tj T*
+(Reference: SIM-HB-2026-0142) Tj T*
+(Overall Outcome: PASS WITH CONDITIONS) Tj T*
+(Assessed Categories: FOOD_STORAGE, TEMPERATURE_CONTROL, CLEANLINESS, PEST_MANAGEMENT,) Tj T*
+(STAFF_HYGIENE, CROSS_CONTAMINATION) Tj T*
+(Finding 1 | MAJOR | TEMPERATURE_CONTROL | Reach-in cooler on the pass recorded 8.5 C at) Tj T*
+(inspection | Status: OPEN) Tj T*
+(Remediation 1: Unit to be serviced; probe log to be provided at re-inspection.) Tj T*
+(Finding 2 | MINOR | CLEANLINESS | Hood filters due for cleaning | Status: CORRECTED) Tj T*
+(Remediation 2: Filters cleaned on site during the inspection.) Tj T*
+(Finding 3 | OBSERVATION | STAFF_HYGIENE | Handwash sink signage faded | Status: RESOLVED) Tj T*
+(Remediation 3: Replacement signage fitted.) Tj T*
+(Attachment: Probe calibration check \(simulated, not provided\)) Tj T*
+(Prepared by the simulated demo authority for training and product testing only.) Tj T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000247 00000 n 
+0000000317 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1584
+%%EOF
