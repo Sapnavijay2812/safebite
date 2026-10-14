@@ -6,9 +6,11 @@ Nothing in this guide is deployed or provisioned. The application runs fully loc
 
 | Capability | Status | Where | Requires |
 | --- | --- | --- | --- |
-| Gemini grounded explanations (Gemini Developer API) | Code path implemented, **not exercised** against a live endpoint | `src/lib/ai/provider.ts`, `explain-service.ts` | `GEMINI_API_KEY` |
-| Gemini on Vertex AI for explanations | Code path implemented, **not exercised** | same | `VERTEX_PROJECT_ID`, `VERTEX_LOCATION`, `VERTEX_ACCESS_TOKEN` |
-| Gemini structured extraction for documents | Code path implemented, **not exercised**; accepted only if grounded in the document text | `src/lib/ai/gemini-extraction.ts` | same as above |
+
+
+
+| Gemini on Vertex AI: grounded explanations | Implemented with the official `@google/genai` SDK (ADC auth). Verify with `npm run ai:smoke` | `src/lib/ai/vertex-client.ts`, `explain-service.ts` | `VERTEX_PROJECT_ID`, `VERTEX_LOCATION`, `SAFEBITE_AI_MODE=VERTEX`, ADC |
+| Gemini on Vertex AI: document extraction | Same client; output must be grounded in the document text and reviewed by a human | `src/lib/ai/gemini-extraction.ts` | same as above |
 | BigQuery analytics export | Adapter implemented (`insertAll`), **not exercised** | `src/lib/cloud/export.ts` | `ANALYTICS_SINK=BIGQUERY`, `BIGQUERY_PROJECT_ID`, `BIGQUERY_DATASET`, `BIGQUERY_ACCESS_TOKEN`, tables created from the schema |
 | Looker-compatible exports | Working locally: CSV and JSON Lines per table | `/api/analytics/export` | none |
 | Cloud Storage for evidence files | Documented; local implementation only | `src/lib/storage/local-storage.ts` (replace `saveUpload` and `readStoredFile`) | a bucket and a service account |
@@ -30,16 +32,11 @@ Nothing in this guide is deployed or provisioned. The application runs fully loc
 
 The app never presents a template or a local value as a cloud result. The `mode`, `modelLabel`, `provider` and `ANALYTICS_SINK` values in responses say which path ran.
 
-## 3. Enabling Gemini (when approved)
+## 3. Enabling Gemini on Vertex AI
 
-1. Choose the path:
-   - **Gemini Developer API:** create an API key in a project you control. Set `SAFEBITE_AI_MODE=GEMINI_API` and `GEMINI_API_KEY`. Keep the key server-side.
-   - **Vertex AI:** enable the Vertex AI API. Use a service account or workload identity. Set `SAFEBITE_AI_MODE=VERTEX`, `VERTEX_PROJECT_ID`, `VERTEX_LOCATION` (for example `us-central1`), and a short-lived access token in `VERTEX_ACCESS_TOKEN`. For Cloud Run, prefer the service account identity over a copied token.
-2. Choose a model with `GEMINI_MODEL` (default `gemini-2.5-flash`). Check current model availability and pricing for your region first.
-3. Restart the server. `/api/health` reports the effective `aiMode`. If it says `DEMO`, the reason is in the explainer's `aiConfigReason` field.
-4. Try a sample question. The answer must show `GEMINI` mode and cite sources. If it shows a fallback, read the notice.
+The full local setup (Google Cloud CLI, enabling the API, the IAM role, Application Default Credentials, `.env` values and the `npm run ai:smoke` check) is in the README under "Set up real Gemini on Vertex AI".
 
-Never commit keys, never prefix them with `NEXT_PUBLIC_`, and never paste them into logs or tickets.
+For Cloud Run, do not use a copied token. Attach a service account with the `Vertex AI User` role, and set `SAFEBITE_AI_MODE=VERTEX`, `VERTEX_PROJECT_ID` and `VERTEX_LOCATION` as environment variables. The SDK uses the attached service account automatically. Never set `NEXT_PUBLIC_` on any of these variables.
 
 ## 4. Cloud Run architecture (documentation only)
 
@@ -66,7 +63,7 @@ Suggested steps when approved:
 2. Build a standalone image: set `output: "standalone"` in `next.config.ts`, then build a container image.
 3. Create a Cloud Run service with a dedicated service account. Grant it only Cloud SQL Client, Storage Object Admin on the evidence bucket, and Vertex AI User. Grant BigQuery Data Editor on the analytics dataset only if the BigQuery sink is used.
 4. Put the admin routes (`/moderation`, `/documents`, `/analytics`, `/api/moderation`, `/api/documents`, `/api/analytics`) behind an identity-aware proxy or sign-in, then set `SAFEBITE_ENABLE_DEMO_ADMIN=true` only after that is in place. Without it, these endpoints return 403 in production.
-5. Use Secret Manager for `GEMINI_API_KEY`, `BIGQUERY_ACCESS_TOKEN` and database credentials. Mount them as environment variables, not files in the image.
+5. Use Secret Manager for `BIGQUERY_ACCESS_TOKEN` and database credentials. Mount them as environment variables, not files in the image.
 
 ## 5. Optional Pub/Sub event processing (documentation only)
 

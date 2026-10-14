@@ -5,7 +5,7 @@
 import { ApiError } from "@/lib/api/errors";
 import type { PublishReviewInput } from "@/lib/api/schemas";
 import { db } from "@/lib/data/db";
-import { extractWithGemini } from "@/lib/ai/gemini-extraction";
+import { extractWithVertex } from "@/lib/ai/gemini-extraction";
 import { resolveAiConfig } from "@/lib/ai/provider";
 import { ExtractionError, extractFromText, type ExtractionResult } from "@/lib/documents/extract";
 import { parsePdfText } from "@/lib/documents/pdf-text";
@@ -71,6 +71,8 @@ export interface ExtractionOutcome {
   status: "EXTRACTED" | "FAILED";
   provider: "DETERMINISTIC" | "GEMINI";
   result: ExtractionResult | null;
+  // Set when extraction succeeded with rules because Vertex AI was unavailable or rejected.
+  fallbackCode: string | null;
   errorCode: string | null;
   message: string | null;
 }
@@ -101,16 +103,19 @@ export async function extractDocument(documentId: string): Promise<ExtractionOut
 
   let result: ExtractionResult | null = null;
   let provider: "DETERMINISTIC" | "GEMINI" = "DETERMINISTIC";
+  let fallbackCode: string | null = null;
   if (!failure) {
     try {
-      // Gemini is used only when configured and grounded; otherwise the rule-based path runs.
+      // Vertex AI is tried only when selected. Any failure is recorded as fallbackCode and
+      // shown to the reviewer; the rule-based extractor then runs on the same text.
       const config = resolveAiConfig();
-      const modelResult = config.effectiveMode === "DEMO" ? null : await extractWithGemini(config, text);
-      if (modelResult) {
-        result = modelResult;
+      const attempt = config.mode === "VERTEX" || config.configError ? await extractWithVertex(config, text) : null;
+      if (attempt?.ok) {
+        result = attempt.result;
         provider = "GEMINI";
       } else {
         result = extractFromText(text);
+        fallbackCode = attempt && !attempt.ok ? attempt.code : null;
       }
     } catch (error) {
       failure = error instanceof ExtractionError
@@ -121,6 +126,7 @@ export async function extractDocument(documentId: string): Promise<ExtractionOut
 
   const status = failure ? "FAILED" : "EXTRACTED";
   const storedProvider = failure ? "DETERMINISTIC" : provider;
+  const errorCode = failure?.code ?? fallbackCode;
   await db.$transaction(async (tx) => {
     await tx.documentExtraction.upsert({
       where: { documentId },
@@ -129,13 +135,13 @@ export async function extractDocument(documentId: string): Promise<ExtractionOut
         status,
         provider: storedProvider,
         extractedJson: JSON.stringify(result ?? {}),
-        errorCode: failure?.code ?? null,
+        errorCode,
       },
       update: {
         status,
         provider: storedProvider,
         extractedJson: JSON.stringify(result ?? {}),
-        errorCode: failure?.code ?? null,
+        errorCode,
         reviewedJson: null,
         reviewedAt: null,
       },
@@ -145,13 +151,14 @@ export async function extractDocument(documentId: string): Promise<ExtractionOut
       data: { processingStatus: failure ? "UPLOADED" : "EXTRACTED" },
     });
   });
-  await audit("DOCUMENT_EXTRACTED", documentId, { status, provider: storedProvider, errorCode: failure?.code ?? null });
+  await audit("DOCUMENT_EXTRACTED", documentId, { status, provider: storedProvider, errorCode });
 
   return {
     status,
     provider: storedProvider,
     result,
-    errorCode: failure?.code ?? null,
+    fallbackCode,
+    errorCode,
     message: failure?.message ?? null,
   };
 }

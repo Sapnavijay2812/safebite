@@ -1,6 +1,7 @@
 // Validation of model output. A model answer is accepted only when it is
-// well-formed JSON, matches the schema, and cites nothing outside the evidence
-// bundle it was given. Anything else falls back to the deterministic explainer.
+// well-formed JSON, matches the schema, cites only sources it was given, and does not
+// state dates or certification-style claims that the cited records do not contain.
+// Anything else is rejected and the explainer reports the rejection.
 
 import { z } from "zod";
 
@@ -12,27 +13,50 @@ export const modelAnswerSchema = z.object({
 
 export type ModelAnswer = z.infer<typeof modelAnswerSchema>;
 
+export interface GroundingSource {
+  id: string;
+  detail: string;
+  label: string;
+}
+
 export type ModelAnswerCheck =
   | { ok: true; value: ModelAnswer }
-  | { ok: false; reason: "SCHEMA" | "UNKNOWN_CITATION" | "EMPTY_CITATIONS" };
+  | { ok: false; reason: "SCHEMA" | "UNKNOWN_CITATION" | "EMPTY_CITATIONS" | "UNSUPPORTED_DATE" | "FORBIDDEN_CLAIM" };
 
-// Sentences that claim official certification or a safety verdict are never
-// acceptable from the model, whatever the evidence says.
-const FORBIDDEN_CLAIMS = [/\bcertified (as )?safe\b/i, /\bofficially (certified|approved|graded)\b/i, /\bhealth grade [A-C]\b/i, /\b100% safe\b/i];
+// Claims that a model must never make about a restaurant, whatever the records say.
+const FORBIDDEN_CLAIMS = [
+  /\bcertified\b/i,
+  /\bofficially (approved|graded|endorsed)\b/i,
+  /\bhealth grade\b/i,
+  /\b\d{1,3}% safe\b/i,
+  /\bsafe to eat\b/i,
+  /\bis safe\b/i,
+  /\bno (food )?safety (risks?|violations?|issues?)\b/i,
+  /\bpassed (its |the |an )?(official )?(health )?inspection\b/i,
+];
 
-export function checkModelAnswer(raw: unknown, allowedSourceIds: readonly string[]): ModelAnswerCheck {
+const DATE_PATTERN = /\b\d{4}-\d{2}-\d{2}\b/g;
+
+export function checkModelAnswer(raw: unknown, sources: readonly GroundingSource[]): ModelAnswerCheck {
   const parsed = modelAnswerSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, reason: "SCHEMA" };
   const value = parsed.data;
-  if (value.citations.some((id) => !allowedSourceIds.includes(id))) {
+  const cited = sources.filter((s) => value.citations.includes(s.id));
+  if (cited.length !== new Set(value.citations).size) {
     return { ok: false, reason: "UNKNOWN_CITATION" };
   }
   if (value.citations.length === 0 && !value.insufficientEvidence) {
     // A factual answer must point at evidence; otherwise it is an ungrounded claim.
     return { ok: false, reason: "EMPTY_CITATIONS" };
   }
+  // Every date in the answer must appear in a source the answer cites.
+  const citedText = cited.map((s) => `${s.label} ${s.detail}`).join(" ");
+  const dates = value.answer.match(DATE_PATTERN) ?? [];
+  if (dates.some((d) => !citedText.includes(d))) {
+    return { ok: false, reason: "UNSUPPORTED_DATE" };
+  }
   if (FORBIDDEN_CLAIMS.some((pattern) => pattern.test(value.answer))) {
-    return { ok: false, reason: "SCHEMA" };
+    return { ok: false, reason: "FORBIDDEN_CLAIM" };
   }
   return { ok: true, value };
 }

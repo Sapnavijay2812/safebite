@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     const response = await explainQuestion({ question: input.question, profile, compareProfile, config });
-    return NextResponse.json({ ...response, requestedMode: config.requestedMode, aiConfigReason: config.reason });
+    return NextResponse.json({ ...response, aiMode: config.mode, aiConfigError: config.configError });
   } catch (error) {
     return handleApiError(error, "POST /api/ai/explain");
   }

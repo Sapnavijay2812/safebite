@@ -9,7 +9,8 @@ export function GET() {
   return NextResponse.json({
     status: "ok",
     time: new Date().toISOString(),
-    aiMode: ai.effectiveMode,
+    aiMode: ai.mode,
+    aiConfigError: ai.configError,
     demoData: true,
   });
 }

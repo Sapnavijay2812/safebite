@@ -7,8 +7,12 @@ import { z } from "zod";
 import type { ExtractedFinding, ExtractionResult } from "@/lib/documents/extract";
 import { CATEGORY_KEYS, INSPECTION_OUTCOMES, SEVERITIES } from "@/lib/domain";
 import type { AiConfig } from "./provider";
-import { callGemini } from "./provider";
+import { callVertex, type GenerateClient, type VertexErrorCode } from "./vertex-client";
 import { sanitizeForModel } from "./sanitize";
+
+export type ExtractionAttempt =
+  | { ok: true; result: ExtractionResult }
+  | { ok: false; code: VertexErrorCode | "UNREADABLE_RESPONSE" | "SCHEMA_MISMATCH" | "GROUNDING_FAILED"; detail: string };
 
 const extractionSchema = z.object({
   establishmentName: z.string().max(120).nullable(),
@@ -78,19 +82,21 @@ export function checkGrounding(parsed: z.infer<typeof extractionSchema>, text: s
   return { ok: true };
 }
 
-export async function extractWithGemini(config: AiConfig, text: string): Promise<ExtractionResult | null> {
+// Returns an explicit outcome. The caller decides what to show; nothing is silently dropped.
+export async function extractWithVertex(config: AiConfig, text: string, client?: GenerateClient): Promise<ExtractionAttempt> {
   const user = `<<<DOCUMENT\n${sanitizeForModel(text, 20_000)}\nDOCUMENT>>>`;
-  const result = await callGemini(config, SYSTEM_PROMPT, user, EXTRACTION_RESPONSE_SCHEMA);
-  if (!result.ok) return null;
+  const result = await callVertex(config, { systemInstruction: SYSTEM_PROMPT, prompt: user, responseSchema: EXTRACTION_RESPONSE_SCHEMA }, client);
+  if (!result.ok) return { ok: false, code: result.code, detail: result.detail };
   let raw: unknown;
   try {
     raw = JSON.parse(result.text);
   } catch {
-    return null;
+    return { ok: false, code: "UNREADABLE_RESPONSE", detail: "Gemini returned text that is not JSON." };
   }
   const parsed = extractionSchema.safeParse(raw);
-  if (!parsed.success) return null;
-  if (!checkGrounding(parsed.data, text).ok) return null;
+  if (!parsed.success) return { ok: false, code: "SCHEMA_MISMATCH", detail: "Gemini's JSON did not match the extraction schema." };
+  const grounding = checkGrounding(parsed.data, text);
+  if (!grounding.ok) return { ok: false, code: "GROUNDING_FAILED", detail: grounding.reason };
 
   const v = parsed.data;
   const field = <T>(value: T | null, confidence: number) =>
@@ -111,7 +117,7 @@ export async function extractWithGemini(config: AiConfig, text: string): Promise
   );
   if (v.categoriesAssessed.length === 0) missingFields.push("categoriesAssessed" as never);
 
-  return {
+  const extraction: ExtractionResult = {
     provider: "GEMINI",
     fields: {
       establishmentName: field(v.establishmentName, 0.8),
@@ -124,8 +130,9 @@ export async function extractWithGemini(config: AiConfig, text: string): Promise
     findings,
     evidenceReferences: [],
     missingFields,
-    warnings: ["Extracted by Gemini and grounded against the document text. A human must review before publishing."],
+    warnings: ["Extracted by Gemini on Vertex AI and grounded against the document text. A human must review before publishing."],
     injectionSuspected: /ignore (all |any |the )?(previous|prior) instructions/i.test(text),
     isSimulatedRecord: /SIMULATED RECORD/i.test(text),
   };
+  return { ok: true, result: extraction };
 }

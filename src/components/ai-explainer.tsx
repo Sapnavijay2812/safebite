@@ -120,7 +120,7 @@ export function AiExplainer({ slug, initialQuestion = "", compareOptions }: Prop
               <p className="mt-2 flex items-start gap-2 text-sm text-critical"><TriangleAlert size={15} className="mt-0.5 shrink-0" aria-hidden="true" />{turn.error}</p>
             ) : turn.response ? (
               <div className="mt-3">
-                <p className={`pill ${turn.response.mode === "GEMINI" ? "bg-brand-soft text-brand-strong" : "bg-neutral-soft text-ink"}`}>
+                <p className={`pill ${turn.response.source === "VERTEX_AI" ? "bg-brand-soft text-brand-strong" : turn.response.source === "TEMPLATE_AFTER_VERTEX_ERROR" ? "bg-critical-soft text-critical" : "bg-neutral-soft text-ink"}`}>
                   {turn.response.modelLabel}
                 </p>
                 <p className="mt-3 text-sm leading-relaxed">{turn.response.answer}</p>

@@ -174,6 +174,12 @@ export function DocumentReview({ doc, extraction }: { doc: ReviewDocument; extra
             Extraction did not succeed ({extraction.errorCode ?? "unknown"}). You can still enter the values manually after checking the original.
           </p>
         ) : null}
+        {extraction && extraction.status === "EXTRACTED" && extraction.provider !== "GEMINI" && extraction.errorCode ? (
+          <p role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-sm text-warn">
+            <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+            Gemini on Vertex AI did not extract this document ({extraction.errorCode}). Rule-based extraction was used instead. Check every field.
+          </p>
+        ) : null}
         {machine?.injectionSuspected ? (
           <p role="alert" className="mt-4 flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-sm text-warn">
             <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -186,7 +192,7 @@ export function DocumentReview({ doc, extraction }: { doc: ReviewDocument; extra
         <section className="card p-6" aria-labelledby="machine-heading">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 id="machine-heading" className="text-lg">Machine-extracted fields</h3>
-            <span className="pill bg-accent-soft text-accent-text">{extraction?.provider === "GEMINI" ? "AI-extracted (Gemini, grounded)" : "Rule-extracted (deterministic)"} · not verified</span>
+            <span className="pill bg-accent-soft text-accent-text">{extraction?.provider === "GEMINI" ? "AI-extracted by Gemini on Vertex AI (grounded)" : "Rule-extracted (no AI)"} · not verified</span>
           </div>
           <dl className="mt-4 grid gap-3 sm:grid-cols-2">
             {(Object.entries(machine.fields) as Array<[string, ExtractedFieldShape<string>]>).map(([key, field]) => (

@@ -2,7 +2,7 @@
   "name": "safebite",
   "version": "0.1.0",
   "private": true,
-  "description": "SafeBite — evidence-based food safety transparency for smarter food choices.",
+  "description": "SafeBite \u2014 evidence-based food safety transparency for smarter food choices.",
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -17,12 +17,14 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
-    "fixtures:pdf": "node scripts/generate-sample-pdf.mjs"
+    "fixtures:pdf": "node scripts/generate-sample-pdf.mjs",
+    "ai:smoke": "node --env-file-if-exists=.env --import tsx scripts/vertex-smoke.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@google/genai": "^1.0.0",
     "@prisma/client": "6.9.0",
     "lucide-react": "0.511.0",
     "next": "15.3.4",

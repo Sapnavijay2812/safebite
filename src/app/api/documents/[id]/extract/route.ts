@@ -17,7 +17,13 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       status: outcome.status,
       provider: outcome.provider,
       // Labelled as machine output. Nothing here is published.
-      providerLabel: outcome.provider === "GEMINI" ? "AI-extracted (Gemini, grounded)" : "Rule-extracted (deterministic)",
+      providerLabel:
+        outcome.provider === "GEMINI"
+          ? "AI-extracted by Gemini on Vertex AI (grounded)"
+          : outcome.fallbackCode
+            ? `Rule-extracted: Vertex AI unavailable (${outcome.fallbackCode})`
+            : "Rule-extracted (no AI)",
+      fallbackCode: outcome.fallbackCode,
       errorCode: outcome.errorCode,
       message: outcome.message,
       extraction: outcome.result,

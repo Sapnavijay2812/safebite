@@ -22,7 +22,7 @@ This project was generated in an environment where the public npm registry was b
 
 ## Quick start
 
-Requirements: **Node.js 20.9+ (tested target: 24)** and npm. No Docker, Google Cloud or API keys needed.
+Requirements: **Node.js 22.9+ (24 recommended)** and npm. No Docker, Google Cloud or API keys are needed for the demo.
 
 ```bash
 cd safebite
@@ -109,15 +109,55 @@ Each one is designed to show a different evidence state (see `src/lib/demo/seed-
 
 ---
 
-## AI explainer
+## AI explainer and document extraction
 
-- **Default: DEMO EXPLAINER.** A deterministic template that cites the records it uses. It is labelled as a template, never as Gemini.
-- **Gemini (optional).** Set `SAFEBITE_AI_MODE=GEMINI_API` with `GEMINI_API_KEY`, or `SAFEBITE_AI_MODE=VERTEX` with `VERTEX_PROJECT_ID` and `VERTEX_ACCESS_TOKEN`. Output must parse against a schema and cite only supplied source IDs. Otherwise the deterministic answer is shown and the reason is stated.
-- Keys stay on the server. Document text is treated as untrusted data. Requests have a timeout and a per-IP rate limit.
+SafeBite can use **Gemini on Vertex AI** through Google's official `@google/genai` SDK. The app shows which source produced each answer:
 
-Gemini was **not** exercised against a live endpoint in this build (no approved credentials). The request and validation path is implemented and unit-tested at the validation layer only.
+| Badge | Meaning |
+| --- | --- |
+| **Gemini gemini-2.5-flash on Vertex AI** (green) | Real model output, validated and cited |
+| **DEMO EXPLAINER (deterministic template, not Gemini)** (grey) | Demo mode. No model was called |
+| **Vertex AI did not answer (CODE)** (red) | Vertex AI was selected but failed. The template answer is shown, with the error code and reason |
 
----
+Nothing falls back silently. A Vertex failure is always shown with its error code. Model output must parse against a schema, cite only sources the app supplied, and must not state dates or certifications that the cited records don't contain.
+
+Document extraction follows the same rules. Gemini proposes fields, each one must appear in the document's text, and a human still reviews everything before publication. If Gemini fails, rule-based extraction runs and the review screen says why.
+
+### Set up real Gemini on Vertex AI (Windows PowerShell or macOS/Linux)
+
+1. **Install the Google Cloud CLI** from https://cloud.google.com/sdk/docs/install.
+2. **Sign in and choose a project** that you are allowed to use and that has billing enabled:
+   ```bash
+   gcloud auth login
+   gcloud config set project <YOUR_PROJECT_ID>
+   ```
+3. **Enable the Vertex AI API:**
+   ```bash
+   gcloud services enable aiplatform.googleapis.com
+   ```
+4. **Grant your user the Vertex AI User role** on the project (or ask an admin to):
+   ```bash
+   gcloud projects add-iam-policy-binding <YOUR_PROJECT_ID> --member="user:<your-email>" --role="roles/aiplatform.user"
+   ```
+5. **Create Application Default Credentials** for local development. This is what the SDK uses instead of a token you paste in:
+   ```bash
+   gcloud auth application-default login
+   ```
+6. **Set the variables in `.env`:**
+   ```
+   SAFEBITE_AI_MODE="VERTEX"
+   VERTEX_PROJECT_ID="<YOUR_PROJECT_ID>"
+   VERTEX_LOCATION="us-central1"
+   GEMINI_MODEL="gemini-2.5-flash"
+   ```
+7. **Run one real request** (this uses a small amount of Vertex AI quota):
+   ```bash
+   npm run ai:smoke
+   ```
+   A success prints `Live response received from Vertex AI:` followed by JSON. A failure prints an error code, such as `AUTH_FAILED` (step 5 or 4 is missing) or `MODEL_ERROR` (the model isn't available in your location or project).
+8. **Restart `npm run dev`** and open `/restaurants/copperleaf-kitchen`, then ask a question in the AI explainer. A green badge that says "on Vertex AI" means the answer came from Gemini.
+
+Keep `SAFEBITE_AI_MODE="DEMO"` if you don't want any Vertex calls.
 
 ## Configuration
 
@@ -126,9 +166,11 @@ Copy `.env.example` to `.env`. Every variable is optional. See the file for desc
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | `file:./dev.db` | SQLite database (relative to `prisma/`) |
-| `SAFEBITE_AI_MODE` | `DEMO` | `DEMO`, `GEMINI_API` or `VERTEX` |
-| `GEMINI_API_KEY` | empty | Server-side only |
-| `VERTEX_PROJECT_ID`, `VERTEX_LOCATION`, `VERTEX_ACCESS_TOKEN` | empty | Vertex AI (optional) |
+| `SAFEBITE_AI_MODE` | `DEMO` | `DEMO` or `VERTEX` |
+| `VERTEX_PROJECT_ID` | empty | Required for `VERTEX` |
+| `VERTEX_LOCATION` | `us-central1` | Vertex AI region |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Model name |
+| `AI_TIMEOUT_MS` | `15000` | Per-request timeout |
 | `UPLOAD_DIR` | `data/uploads` | Must resolve inside the project |
 | `MAX_UPLOAD_BYTES` | `5242880` | 5 MB |
 | `SAFEBITE_ENABLE_DEMO_ADMIN` | `true` | In production, must be `true` **and** sit behind an auth layer |
